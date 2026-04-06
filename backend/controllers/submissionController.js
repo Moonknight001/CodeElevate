@@ -40,22 +40,28 @@ const executeCode = async (sourceCode, languageId, stdin = '') => {
   }
 };
 
+const VALID_LANGUAGES = Object.keys(LANGUAGE_IDS);
+
+// Validate MongoDB ObjectId
+const isValidObjectId = (id) => typeof id === 'string' && /^[0-9a-fA-F]{24}$/.test(id);
+
 // @desc    Run code without saving submission
 // @route   POST /api/submissions/run
 const runCode = async (req, res) => {
   try {
     const { code, language, problemId, input } = req.body;
 
-    if (!code || !language) {
+    if (!code || typeof code !== 'string' || !language || typeof language !== 'string') {
       return res.status(400).json({ message: 'Code and language are required' });
     }
 
-    const languageId = LANGUAGE_IDS[language];
-    if (!languageId) {
+    if (!VALID_LANGUAGES.includes(language)) {
       return res.status(400).json({ message: 'Unsupported language' });
     }
 
-    const result = await executeCode(code, languageId, input || '');
+    const languageId = LANGUAGE_IDS[language];
+    const safeInput = typeof input === 'string' ? input : '';
+    const result = await executeCode(code, languageId, safeInput);
 
     res.json({
       output: result.stdout || '',
@@ -76,8 +82,17 @@ const createSubmission = async (req, res) => {
   try {
     const { problemId, language, code } = req.body;
 
-    if (!problemId || !language || !code) {
+    if (!problemId || !language || !code ||
+        typeof problemId !== 'string' || typeof language !== 'string' || typeof code !== 'string') {
       return res.status(400).json({ message: 'problemId, language, and code are required' });
+    }
+
+    if (!isValidObjectId(problemId)) {
+      return res.status(400).json({ message: 'Invalid problem ID' });
+    }
+
+    if (!VALID_LANGUAGES.includes(language)) {
+      return res.status(400).json({ message: 'Unsupported language' });
     }
 
     const problem = await Problem.findById(problemId);
@@ -86,9 +101,6 @@ const createSubmission = async (req, res) => {
     }
 
     const languageId = LANGUAGE_IDS[language];
-    if (!languageId) {
-      return res.status(400).json({ message: 'Unsupported language' });
-    }
 
     const submission = await Submission.create({
       user: req.user._id,
@@ -97,6 +109,7 @@ const createSubmission = async (req, res) => {
       code,
       status: 'Pending',
     });
+
 
     const testResults = [];
     let allPassed = true;
@@ -195,14 +208,23 @@ const getSubmissions = async (req, res) => {
   try {
     const { problemId, page = 1, limit = 20 } = req.query;
     const filter = { user: req.user._id };
-    if (problemId) filter.problem = problemId;
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    if (problemId) {
+      if (!isValidObjectId(problemId)) {
+        return res.status(400).json({ message: 'Invalid problem ID' });
+      }
+      filter.problem = problemId;
+    }
+
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(50, Math.max(1, parseInt(limit, 10) || 20));
+    const skip = (pageNum - 1) * limitNum;
+
     const submissions = await Submission.find(filter)
       .populate('problem', 'title slug difficulty')
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(limitNum);
 
     const total = await Submission.countDocuments(filter);
 
@@ -210,8 +232,8 @@ const getSubmissions = async (req, res) => {
       submissions,
       pagination: {
         total,
-        page: parseInt(page),
-        pages: Math.ceil(total / parseInt(limit)),
+        page: pageNum,
+        pages: Math.ceil(total / limitNum),
       },
     });
   } catch (error) {
@@ -223,7 +245,12 @@ const getSubmissions = async (req, res) => {
 // @route   GET /api/submissions/:id
 const getSubmission = async (req, res) => {
   try {
-    const submission = await Submission.findById(req.params.id)
+    const id = req.params.id;
+    if (!isValidObjectId(id)) {
+      return res.status(400).json({ message: 'Invalid submission ID' });
+    }
+
+    const submission = await Submission.findById(id)
       .populate('problem', 'title slug difficulty')
       .populate('user', 'username');
 

@@ -54,11 +54,12 @@ const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    if (!email || !password) {
+    if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
       return res.status(400).json({ message: 'Email and password are required' });
     }
 
-    const user = await User.findOne({ email }).select('+password +refreshToken');
+    const sanitizedEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: sanitizedEmail }).select('+password +refreshToken');
     if (!user || !(await user.comparePassword(password))) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
@@ -87,7 +88,7 @@ const login = async (req, res) => {
 const logout = async (req, res) => {
   try {
     const { refreshToken } = req.body;
-    if (refreshToken) {
+    if (refreshToken && typeof refreshToken === 'string') {
       await User.findOneAndUpdate(
         { refreshToken },
         { refreshToken: null },
@@ -105,7 +106,7 @@ const logout = async (req, res) => {
 const refresh = async (req, res) => {
   try {
     const { refreshToken } = req.body;
-    if (!refreshToken) {
+    if (!refreshToken || typeof refreshToken !== 'string') {
       return res.status(401).json({ message: 'Refresh token required' });
     }
 

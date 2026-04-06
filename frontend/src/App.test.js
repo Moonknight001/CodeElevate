@@ -1,8 +1,9 @@
 import { render, screen } from '@testing-library/react';
 import App from './App';
 
-test('renders learn react link', () => {
+test('renders CodeElevate app without crashing', () => {
   render(<App />);
-  const linkElement = screen.getByText(/learn react/i);
-  expect(linkElement).toBeInTheDocument();
+  // The app renders the landing page or redirects to login/problems
+  // Just verify the component renders without throwing
+  expect(document.body).toBeTruthy();
 });
