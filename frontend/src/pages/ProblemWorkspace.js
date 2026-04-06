@@ -49,7 +49,11 @@ const ProblemWorkspace = () => {
       try {
         const { data } = await problemsAPI.getById(id);
         setProblem(data);
-        setCode(data.starterCode?.[language] || '');
+        // Initialize with the currently selected language's starter code
+        setCode((prev) => {
+          if (prev) return prev; // don't overwrite if user already typed
+          return data.starterCode?.[language] || '';
+        });
       } catch {
         setError('Problem not found');
       } finally {
@@ -57,7 +61,10 @@ const ProblemWorkspace = () => {
       }
     };
     fetchProblem();
-  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+    // We only want to refetch when the problem ID changes, not when language changes.
+    // Language changes are handled by handleLanguageChange.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   const handleLanguageChange = useCallback((newLang) => {
     setLanguage(newLang);
